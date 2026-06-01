@@ -57,18 +57,21 @@ class Renderer:
         self.crowd_c = [colors[np.random.randint(0, len(colors))] for _ in range(400)]
         
     def draw(self, game, theme: str, bat_color: str) -> np.ndarray:
-        # Determine Theme Colors
-        if theme == 'NEON':
-            bg_col = (15, 5, 25)
-            floor_col = (30, 10, 40)
-            line_col = (255, 50, 255)
-        elif theme == 'RETRO':
-            bg_col = (20, 20, 10)
-            floor_col = (40, 40, 20)
-            line_col = (0, 200, 255)
-        else: # CLASSIC
-            bg_col = (10, 10, 20)
-            floor_col = (20, 20, 40)
+        # Determine Venue Colors (Format RGB untuk BGR OpenCV)
+        if theme == 'TOKYO':
+            # Olympic Blue table, terracotta/reddish-brown background
+            bg_col = (40, 40, 100)       
+            floor_col = (200, 100, 20)   
+            line_col = (255, 255, 255)  
+        elif theme == 'VIENNA':
+            # Rich Red table, charcoal/slate grey background
+            bg_col = (30, 30, 30)       
+            floor_col = (40, 30, 150)    
+            line_col = (240, 240, 240)  
+        else: # CHENGDU (Default)
+            # Vibrant Green table, navy/blue-grey background
+            bg_col = (90, 50, 30)       
+            floor_col = (50, 120, 40)    
             line_col = (255, 255, 255)
 
         # Determine Bat Color
@@ -79,8 +82,25 @@ class Renderer:
         else:
             p_color = (40, 40, 200)
 
-        # Dark retro background
-        canvas = np.full((H, W, 3), bg_col, dtype=np.uint8)
+        # Create a vertical gradient for the stadium background to remove flatness
+        canvas = np.zeros((H, W, 3), dtype=np.uint8)
+        b, g, r = bg_col
+        
+        # Top of the screen will be 40% brightness, bottom (near table) will be 150% brightness
+        multipliers = np.linspace(0.4, 1.5, H).reshape(-1, 1)
+        col_b = np.clip(b * multipliers, 0, 255)
+        col_g = np.clip(g * multipliers, 0, 255)
+        col_r = np.clip(r * multipliers, 0, 255)
+        gradient_col = np.stack([col_b, col_g, col_r], axis=2).astype(np.uint8)
+        canvas[:] = gradient_col
+        
+        # Draw subtle stadium tiers (horizontal lines) to add depth structure
+        tier_col = (int(b*0.5), int(g*0.5), int(r*0.5))
+        for y_tier in range(40, int(FAR_LEFT[1]) + 20, 35):
+            cv2.line(canvas, (0, y_tier), (W, y_tier), tier_col, 2)
+            # Add staggered vertical lines to simulate seating sections
+            for x_sec in range((y_tier * 2) % 150, W, 150):
+                cv2.line(canvas, (x_sec, y_tier), (x_sec, max(0, y_tier-35)), tier_col, 1)
         
         # Floor
         cv2.fillPoly(canvas, [self.floor], floor_col)
@@ -240,24 +260,65 @@ class Renderer:
             cv2.rectangle(canvas, (200, 350), (200 + bar_w, 368), (0, 255, 120), -1)
 
     def _draw_point_scored(self, canvas, game):
-        if game._point_scorer == 'PLAYER':
-            txt, color = "+1  YOU!", (0, 255, 80)
-        else:
-            txt, color = "+1  AI",   (0, 60, 255)
-        cv2.putText(canvas, txt, (280, 370),
-                    cv2.FONT_HERSHEY_DUPLEX, 2.0, color, 3)
+        team_code = getattr(game, 'player_team', 'INA') if game._point_scorer == 'PLAYER' else getattr(game, 'enemy_team', 'BRA')
+        team_names = {'INA': 'INDONESIA', 'IND': 'INDIA', 'JPN': 'JAPAN', 'BRA': 'BRAZIL', 'CHN': 'CHINA'}
+        name = team_names.get(team_code, "TEAM")
+        txt = f"{name} SCORES!"
+        
+        # Colors: (Inner, Outer) in BGR
+        colors = {
+            'BRA': ((0, 255, 255), (0, 100, 0)),    # Kuning, outline Hijau
+            'IND': ((0, 140, 255), (255, 255, 255)),# Oren, outline Putih
+            'CHN': ((0, 0, 255), (0, 0, 100)),      # Merah, outline Merah Tua
+            'JPN': ((255, 255, 255), (0, 0, 200)),  # Putih, outline Merah
+            'INA': ((0, 0, 255), (255, 255, 255))   # Merah, outline Putih
+        }
+        inner_col, outer_col = colors.get(team_code, ((255, 255, 255), (0, 0, 0)))
+        
+        font = cv2.FONT_HERSHEY_DUPLEX
+        scale = 1.8
+        thick_outer = 9
+        thick_inner = 4
+        
+        ts = cv2.getTextSize(txt, font, scale, thick_outer)[0]
+        tx = (W - ts[0]) // 2
+        ty = 370
+        
+        cv2.putText(canvas, txt, (tx, ty), font, scale, outer_col, thick_outer)
+        cv2.putText(canvas, txt, (tx, ty), font, scale, inner_col, thick_inner)
 
     def _draw_game_over(self, canvas, game):
-        if game.winner == 'PLAYER':
-            txt, color = "YOU WIN!", (0, 255, 80)
-        else:
-            txt, color = "AI WINS!", (0, 60, 255)
-        cv2.putText(canvas, txt, (280, 300),
-                    cv2.FONT_HERSHEY_DUPLEX, 2.5, color, 3)
-        cv2.putText(canvas, "Press  R  to restart", (280, 450),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (200, 200, 200), 1)
-        cv2.putText(canvas, "Press  M  for Main Menu", (250, 500),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.9, (100, 200, 255), 1)
+        team_code = getattr(game, 'player_team', 'INA') if game.winner == 'PLAYER' else getattr(game, 'enemy_team', 'BRA')
+        team_names = {'INA': 'INDONESIA', 'IND': 'INDIA', 'JPN': 'JAPAN', 'BRA': 'BRAZIL', 'CHN': 'CHINA'}
+        name = team_names.get(team_code, "TEAM")
+        txt = f"{name} WINS!"
+        
+        colors = {
+            'BRA': ((0, 255, 255), (0, 100, 0)),
+            'IND': ((0, 140, 255), (255, 255, 255)),
+            'CHN': ((0, 0, 255), (0, 0, 100)),
+            'JPN': ((255, 255, 255), (0, 0, 200)),
+            'INA': ((0, 0, 255), (255, 255, 255))
+        }
+        inner_col, outer_col = colors.get(team_code, ((255, 255, 255), (0, 0, 0)))
+        
+        font = cv2.FONT_HERSHEY_DUPLEX
+        scale = 2.2
+        thick_outer = 10
+        thick_inner = 4
+        
+        ts = cv2.getTextSize(txt, font, scale, thick_outer)[0]
+        tx = (W - ts[0]) // 2
+        ty = 300
+        
+        cv2.putText(canvas, txt, (tx, ty), font, scale, outer_col, thick_outer)
+        cv2.putText(canvas, txt, (tx, ty), font, scale, inner_col, thick_inner)
+        
+        ts1 = cv2.getTextSize("Press  R  to restart", cv2.FONT_HERSHEY_SIMPLEX, 0.9, 1)[0]
+        cv2.putText(canvas, "Press  R  to restart", ((W - ts1[0])//2, 450), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (200, 200, 200), 1)
+        
+        ts2 = cv2.getTextSize("Press  M  for Main Menu", cv2.FONT_HERSHEY_SIMPLEX, 0.9, 1)[0]
+        cv2.putText(canvas, "Press  M  for Main Menu", ((W - ts2[0])//2, 500), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (100, 200, 255), 1)
 
     # ─────────────────────────────────────────────────────────────────────────────
     #  MENU SCREENS
@@ -321,10 +382,12 @@ class Renderer:
         
         # LABELS "PLAYER TEAM" dan "ENEMY TEAM"
         cv2.rectangle(canvas, (80, 110), (320, 140), (0, 100, 0), -1) # Background hijau tua
-        cv2.putText(canvas, "PLAYER TEAM", (110, 133), cv2.FONT_HERSHEY_DUPLEX, 0.9, (0, 215, 255), 2)
+        ts1 = cv2.getTextSize("PLAYER TEAM", cv2.FONT_HERSHEY_DUPLEX, 0.9, 2)[0]
+        cv2.putText(canvas, "PLAYER TEAM", (80 + (240 - ts1[0]) // 2, 110 + (30 + ts1[1]) // 2), cv2.FONT_HERSHEY_DUPLEX, 0.9, (0, 215, 255), 2)
         
         cv2.rectangle(canvas, (480, 110), (720, 140), (180, 60, 20), -1) # Background biru piala dunia
-        cv2.putText(canvas, "ENEMY TEAM", (510, 133), cv2.FONT_HERSHEY_DUPLEX, 0.9, (0, 215, 255), 2)
+        ts2 = cv2.getTextSize("ENEMY TEAM", cv2.FONT_HERSHEY_DUPLEX, 0.9, 2)[0]
+        cv2.putText(canvas, "ENEMY TEAM", (480 + (240 - ts2[0]) // 2, 110 + (30 + ts2[1]) // 2), cv2.FONT_HERSHEY_DUPLEX, 0.9, (0, 215, 255), 2)
         
         teams = [('INA', 'Indonesia', 3.0), ('IND', 'India', 3.5), ('JPN', 'Japan', 4.0), ('BRA', 'Brazil', 4.5), ('CHN', 'China', 5.0)]
         
@@ -396,12 +459,13 @@ class Renderer:
         cv2.circle(canvas, (bx+bw, by), 4, (0, 215, 255), -1)
         cv2.circle(canvas, (bx, by+bh), 4, (0, 215, 255), -1)
         cv2.circle(canvas, (bx+bw, by+bh), 4, (0, 215, 255), -1)
-        cv2.putText(canvas, "V CONFIRM", (bx+55, by+42), cv2.FONT_HERSHEY_DUPLEX, 1.2, (0, 100, 0), 3)
+        ts_btn = cv2.getTextSize("CONFIRM", cv2.FONT_HERSHEY_DUPLEX, 1.2, 3)[0]
+        cv2.putText(canvas, "CONFIRM", (bx + (bw - ts_btn[0]) // 2, by + (bh + ts_btn[1]) // 2), cv2.FONT_HERSHEY_DUPLEX, 1.2, (0, 100, 0), 3)
         
         self._draw_cursor(canvas, cursor_pos, gesture)
         return canvas
 
-    def draw_customize_screen(self, arena_theme, bat_color, cursor_pos=None, gesture=None) -> np.ndarray:
+    def draw_customize_screen(self, arena_theme, bat_color, cursor_pos=None, gesture=None, hold_progress=0.0) -> np.ndarray:
         # Background: HIJAU LAPANGAN
         canvas = np.full((H, W, 3), (34, 139, 34), dtype=np.uint8)
         
@@ -417,41 +481,51 @@ class Renderer:
         text_size = cv2.getTextSize("CUSTOMIZATION", cv2.FONT_HERSHEY_DUPLEX, 1.8, 3)[0]
         cv2.putText(canvas, "CUSTOMIZATION", ((W - text_size[0])//2, 65), cv2.FONT_HERSHEY_DUPLEX, 1.8, (0, 215, 255), 3)
         
-        # Section 1: ARENA THEME
+        # Section 1: VENUE
         cv2.rectangle(canvas, (90, 180), (310, 210), (0, 80, 0), -1)
-        cv2.putText(canvas, "ARENA THEME:", (100, 202), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 215, 255), 2)
+        ts_th = cv2.getTextSize("VENUE:", cv2.FONT_HERSHEY_SIMPLEX, 0.75, 2)[0]
+        cv2.putText(canvas, "VENUE:", (90 + (220 - ts_th[0]) // 2, 180 + (30 + ts_th[1]) // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 215, 255), 2)
         
-        themes = [("CLASSIC", 'CLASSIC'), ("NEON", 'NEON'), ("RETRO", 'RETRO')]
+        themes = [("CHENGDU", 'CHENGDU'), ("TOKYO", 'TOKYO'), ("VIENNA", 'VIENNA')]
         for i, (text, key) in enumerate(themes):
             bx = 130 + i*180
             by = 220
+            bw_theme = 150
+            bh_theme = 55
             if arena_theme == key:
-                cv2.rectangle(canvas, (bx, by), (bx+150, by+55), (0, 215, 255), -1)
-                cv2.rectangle(canvas, (bx, by), (bx+150, by+55), (255, 255, 255), 3)
-                cv2.putText(canvas, text, (bx+25, by+35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 80, 0), 3)
-                cv2.putText(canvas, "V", (bx+130, by+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 80, 0), 2)
+                cv2.rectangle(canvas, (bx, by), (bx+bw_theme, by+bh_theme), (0, 215, 255), -1)
+                cv2.rectangle(canvas, (bx, by), (bx+bw_theme, by+bh_theme), (255, 255, 255), 3)
+                ts = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 3)[0]
+                cv2.putText(canvas, text, (bx + (bw_theme - ts[0]) // 2, by + (bh_theme + ts[1]) // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 80, 0), 3)
             else:
-                cv2.rectangle(canvas, (bx, by), (bx+150, by+55), (0, 100, 0), -1)
-                cv2.rectangle(canvas, (bx, by), (bx+150, by+55), (255, 255, 255), 1)
-                cv2.putText(canvas, text, (bx+25, by+35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (150, 150, 150), 1)
+                cv2.rectangle(canvas, (bx, by), (bx+bw_theme, by+bh_theme), (0, 100, 0), -1)
+                cv2.rectangle(canvas, (bx, by), (bx+bw_theme, by+bh_theme), (255, 255, 255), 1)
+                ts = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 1)[0]
+                cv2.putText(canvas, text, (bx + (bw_theme - ts[0]) // 2, by + (bh_theme + ts[1]) // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (150, 150, 150), 1)
                 
         # Section 2: BAT COLOR
         cv2.rectangle(canvas, (90, 330), (310, 360), (0, 80, 0), -1)
-        cv2.putText(canvas, "BAT COLOR:", (100, 352), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 215, 255), 2)
+        ts_bc = cv2.getTextSize("BAT COLOR:", cv2.FONT_HERSHEY_SIMPLEX, 0.75, 2)[0]
+        cv2.putText(canvas, "BAT COLOR:", (90 + (220 - ts_bc[0]) // 2, 330 + (30 + ts_bc[1]) // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 215, 255), 2)
         
         bats = [("RED", 'RED', (0, 0, 200)), ("BLUE", 'BLUE', (200, 80, 40)), ("GREEN", 'GREEN', (40, 200, 40))]
         for i, (text, key, disp_col) in enumerate(bats):
             bx = 130 + i*180
             by = 370
+            bw_bat = 150
+            bh_bat = 55
+            text_area_x = bx + 45
+            text_area_w = 105
             if bat_color == key:
-                cv2.rectangle(canvas, (bx, by), (bx+150, by+55), (0, 215, 255), -1)
-                cv2.rectangle(canvas, (bx, by), (bx+150, by+55), (255, 255, 255), 3)
-                cv2.putText(canvas, text, (bx+45, by+35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 80, 0), 3)
-                cv2.putText(canvas, "V", (bx+130, by+20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 80, 0), 2)
+                cv2.rectangle(canvas, (bx, by), (bx+bw_bat, by+bh_bat), (0, 215, 255), -1)
+                cv2.rectangle(canvas, (bx, by), (bx+bw_bat, by+bh_bat), (255, 255, 255), 3)
+                ts = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 3)[0]
+                cv2.putText(canvas, text, (text_area_x + (text_area_w - ts[0]) // 2, by + (bh_bat + ts[1]) // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 80, 0), 3)
             else:
-                cv2.rectangle(canvas, (bx, by), (bx+150, by+55), (0, 100, 0), -1)
-                cv2.rectangle(canvas, (bx, by), (bx+150, by+55), (255, 255, 255), 1)
-                cv2.putText(canvas, text, (bx+45, by+35), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (150, 150, 150), 1)
+                cv2.rectangle(canvas, (bx, by), (bx+bw_bat, by+bh_bat), (0, 100, 0), -1)
+                cv2.rectangle(canvas, (bx, by), (bx+bw_bat, by+bh_bat), (255, 255, 255), 1)
+                ts = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 1)[0]
+                cv2.putText(canvas, text, (text_area_x + (text_area_w - ts[0]) // 2, by + (bh_bat + ts[1]) // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (150, 150, 150), 1)
                 
             # Lingkaran karet bat
             cv2.circle(canvas, (bx+25, by+27), 10, disp_col, -1)
@@ -461,8 +535,18 @@ class Renderer:
         bw, bh = 350, 65
         cv2.rectangle(canvas, (bx+4, by+4), (bx+bw+4, by+bh+4), (0, 150, 150), -1) # Shadow
         cv2.rectangle(canvas, (bx, by), (bx+bw, by+bh), (0, 215, 255), -1)
+        
+        # Draw hold progress fill
+        if hold_progress > 0.0:
+            fill_w = int(bw * hold_progress)
+            cv2.rectangle(canvas, (bx, by), (bx + fill_w, by + bh), (0, 150, 0), -1)
+            
         cv2.rectangle(canvas, (bx, by), (bx+bw, by+bh), (255, 255, 255), 2)
-        cv2.putText(canvas, ">  START GAME", (bx+50, by+42), cv2.FONT_HERSHEY_DUPLEX, 1.2, (0, 80, 0), 3)
+        
+        # Change text color to white if filling up to maintain contrast, otherwise green
+        text_color = (255, 255, 255) if hold_progress > 0.5 else (0, 80, 0)
+        ts_start = cv2.getTextSize("START GAME", cv2.FONT_HERSHEY_DUPLEX, 1.2, 3)[0]
+        cv2.putText(canvas, "START GAME", (bx + (bw - ts_start[0]) // 2, by + (bh + ts_start[1]) // 2), cv2.FONT_HERSHEY_DUPLEX, 1.2, text_color, 3)
         
         self._draw_cursor(canvas, cursor_pos, gesture)
         return canvas

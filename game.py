@@ -1,7 +1,7 @@
 import time
 import random
-import threading
-import winsound
+import os
+import pygame
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  CONSTANTS
@@ -10,14 +10,6 @@ WIN_SCORE       = 7       # first to this score wins
 WEBCAM_WIDTH    = 480     # left-panel width used to normalize centroid
 PADDLE_WIDTH    = 0.20    # reduced to match visual width of the paddle
 
-def play_sound_async(freq, duration):
-    def run():
-        try:
-            winsound.Beep(freq, duration)
-        except Exception:
-            pass
-    threading.Thread(target=run, daemon=True).start()
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  GAME CLASS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -25,6 +17,16 @@ class Game:
     def __init__(self):
         self.round = 1
         self.difficulty_stars = 4.0
+        
+        try:
+            self.snd_ball = pygame.mixer.Sound(os.path.join("asset", "ball_sound.mp3"))
+            self.snd_crowd = pygame.mixer.Sound(os.path.join("asset", "crowd.mp3"))
+        except Exception:
+            self.snd_ball = None
+            self.snd_crowd = None
+            
+        self.crowd_channel = pygame.mixer.Channel(1)
+        
         self.reset()
 
     def apply_difficulty(self, stars: float):
@@ -78,11 +80,15 @@ class Game:
 
         self.score_flash  = 8
         self._point_timer = time.time()
-        play_sound_async(250, 180)
+        
+        if self.snd_crowd:
+            self.crowd_channel.play(self.snd_crowd)
 
         if self.player_score >= WIN_SCORE or self.ai_score >= WIN_SCORE:
             self.state = 'game_over'
             self.winner = 'PLAYER' if self.player_score >= WIN_SCORE else 'AI'
+            if self.snd_crowd:
+                self.crowd_channel.play(self.snd_crowd, loops=-1)
         else:
             self.state = 'point_scored'
 
@@ -100,17 +106,22 @@ class Game:
         if self.state == 'point_scored':
             if time.time() - self._point_timer > 1.5:
                 self.state = 'playing'
+                self.crowd_channel.stop()
                 self.round += 1
                 self._reset_ball(toward_player=(self._point_scorer == 'AI'))
             return
 
         # State: WAITING FOR HAND
         if self.state == 'waiting':
+            if not self.crowd_channel.get_busy() and self.snd_crowd:
+                self.crowd_channel.play(self.snd_crowd, loops=-1)
+                
             if centroid is not None:
                 if self._hand_seen_since is None:
                     self._hand_seen_since = time.time()
                 elif time.time() - self._hand_seen_since > 1.5:
                     self.state = 'playing'
+                    self.crowd_channel.stop()
                     self._reset_ball(toward_player=True)
             else:
                 self._hand_seen_since = None
@@ -146,11 +157,11 @@ class Game:
         if self.ball_x < 0.0:
             self.ball_x = 0.0
             self.ball_vx *= -1
-            play_sound_async(400, 50)
+            if self.snd_ball: self.snd_ball.play()
         elif self.ball_x > 1.0:
             self.ball_x = 1.0
             self.ball_vx *= -1
-            play_sound_async(400, 50)
+            if self.snd_ball: self.snd_ball.play()
 
         # 5. Paddle Hit Detection (Z-axis)
         # Player Hit (Z crosses 0)
@@ -162,7 +173,7 @@ class Game:
                 swing_impact = self.player_dx * 0.6
                 pos_impact = (self.ball_x - self.player_x) * 0.05
                 self.ball_vx = pos_impact + swing_impact
-                play_sound_async(800, 80)
+                if self.snd_ball: self.snd_ball.play()
             else:
                 self._trigger_point('AI')
                 return
@@ -191,7 +202,7 @@ class Game:
                 # Cap the speed
                 self.ball_vx = max(-0.04, min(0.04, self.ball_vx))
                 
-                play_sound_async(800, 80)
+                if self.snd_ball: self.snd_ball.play()
             else:
                 self._trigger_point('PLAYER')
                 return

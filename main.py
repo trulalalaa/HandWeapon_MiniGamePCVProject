@@ -1,5 +1,8 @@
 import cv2
 import numpy as np
+import os
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+import pygame
 from hand_detector import HandDetector
 from game import Game
 from renderer import Renderer
@@ -17,19 +20,29 @@ def main():
         print("[ERROR] Cannot open webcam. Check camera index.")
         return
 
+    pygame.mixer.init()
+    
     detector = HandDetector()
     game     = Game()
     renderer = Renderer()
 
     # Application State
-    app_state = 'SPLASH'     # SPLASH, TITLE, TEAM_SELECT, CUSTOMIZE, GAME
+    app_state = 'SPLASH'     # SPLASH, TEAM_SELECT, CUSTOMIZE, GAME
     player_team = 'INA'
     enemy_team = 'BRA'
-    arena_theme = 'CLASSIC'
+    arena_theme = 'CHENGDU'
     bat_color = 'RED'
+
+    try:
+        pygame.mixer.music.load(os.path.join("asset", "themesong.mp3"))
+    except Exception as e:
+        print("[WARNING] Could not load themesong.mp3:", e)
+    music_playing = False
 
     fail_count = 0
     MAX_FAILS  = 30
+    
+    start_hold_start_time = None
 
     print("[TABLE PONG FPP] Starting...")
 
@@ -55,19 +68,26 @@ def main():
                 cx, cy = centroid
                 cursor_pos = (int((cx / 640.0) * GAME_W), int((cy / 480.0) * GAME_H))
 
+            # Audio logic
+            if app_state in ('SPLASH', 'TEAM_SELECT', 'CUSTOMIZE'):
+                if not music_playing:
+                    pygame.mixer.music.play(-1)
+                    music_playing = True
+            else:
+                if music_playing:
+                    pygame.mixer.music.stop()
+                    music_playing = False
+
             # Route rendering and logic based on App State
             if app_state == 'SPLASH':
                 game_canvas = renderer.draw_splash_screen()
-                if cv2.waitKey(1) == 32: # SPACE ONLY
-                    app_state = 'TITLE'
+                key_check = cv2.waitKey(1)
+                if key_check == 32: # SPACE
+                    app_state = 'TEAM_SELECT'
                     continue
             elif app_state == 'GAME':
                 game.update(centroid)
                 game_canvas = renderer.draw(game, arena_theme, bat_color)
-            elif app_state == 'TITLE':
-                game_canvas = renderer.draw_title_screen(cursor_pos, gesture)
-                if gesture == 'FIST' or cv2.waitKey(1) == 32:
-                    app_state = 'TEAM_SELECT'
             elif app_state == 'TEAM_SELECT':
                 game_canvas = renderer.draw_team_select_screen(player_team, enemy_team, cursor_pos, gesture)
                 if cursor_pos and gesture == 'FIST':
@@ -90,31 +110,46 @@ def main():
                     elif 300 <= cx <= 500 and 550 <= cy <= 610:
                         app_state = 'CUSTOMIZE'
             elif app_state == 'CUSTOMIZE':
-                game_canvas = renderer.draw_customize_screen(arena_theme, bat_color, cursor_pos, gesture)
+                hold_progress = 0.0
                 if cursor_pos and gesture == 'FIST':
                     cx, cy = cursor_pos
+                    # Start Button: Y: 500 to 560, X: 250 to 550
+                    if 500 <= cy <= 560 and 250 <= cx <= 550:
+                        import time
+                        if start_hold_start_time is None:
+                            start_hold_start_time = time.time()
+                        
+                        hold_progress = min(1.0, (time.time() - start_hold_start_time) / 3.0)
+                        
+                        if hold_progress >= 1.0:
+                            # Set difficulty based on enemy team
+                            stars = {'INA':3.0, 'IND':3.5, 'JPN':4.0, 'BRA':4.5, 'CHN':5.0}.get(enemy_team, 4.0)
+                            
+                            game = Game()
+                            game.apply_difficulty(stars)
+                            # Store teams in game object for renderer to use
+                            game.player_team = player_team
+                            game.enemy_team = enemy_team
+                            
+                            app_state = 'GAME'
+                            start_hold_start_time = None
+                    else:
+                        start_hold_start_time = None
+                        
                     # Themes row: 130 to 280, 310 to 460, 490 to 640. Y: 220 to 270
                     if 220 <= cy <= 270:
-                        if 130 <= cx <= 280: arena_theme = 'CLASSIC'
-                        elif 310 <= cx <= 460: arena_theme = 'NEON'
-                        elif 490 <= cx <= 640: arena_theme = 'RETRO'
+                        if 130 <= cx <= 280: arena_theme = 'CHENGDU'
+                        elif 310 <= cx <= 460: arena_theme = 'TOKYO'
+                        elif 490 <= cx <= 640: arena_theme = 'VIENNA'
                     # Bats row: Y: 370 to 420
                     elif 370 <= cy <= 420:
                         if 130 <= cx <= 280: bat_color = 'RED'
                         elif 310 <= cx <= 460: bat_color = 'BLUE'
                         elif 490 <= cx <= 640: bat_color = 'GREEN'
-                    # Start Button: Y: 500 to 560, X: 250 to 550
-                    elif 500 <= cy <= 560 and 250 <= cx <= 550:
-                        # Set difficulty based on enemy team
-                        stars = {'INA':3.0, 'IND':3.5, 'JPN':4.0, 'BRA':4.5, 'CHN':5.0}.get(enemy_team, 4.0)
-                        
-                        game = Game()
-                        game.apply_difficulty(stars)
-                        # Store teams in game object for renderer to use
-                        game.player_team = player_team
-                        game.enemy_team = enemy_team
-                        
-                        app_state = 'GAME'
+                else:
+                    start_hold_start_time = None
+
+                game_canvas = renderer.draw_customize_screen(arena_theme, bat_color, cursor_pos, gesture, hold_progress)
 
             cv2.imshow('TABLE PONG', game_canvas)
 
@@ -129,27 +164,30 @@ def main():
         if key == ord('q') or key == 27:
             break
 
-        if app_state in ('SPLASH', 'TITLE'):
-                pass # Handled above
-
+        if app_state == 'SPLASH':
+            if key == 13 or key == 32:
+                app_state = 'TEAM_SELECT'
         elif app_state == 'TEAM_SELECT':
             # Fallback keys if gesture doesn't work
             if key == 13 or key == 32:
                 app_state = 'CUSTOMIZE'
 
         elif app_state == 'CUSTOMIZE':
-            # Select Theme
-            if key == ord('1'): arena_theme = 'CLASSIC'
-            elif key == ord('2'): arena_theme = 'NEON'
-            elif key == ord('3'): arena_theme = 'RETRO'
+            # Select Venue
+            if key == ord('1'): arena_theme = 'CHENGDU'
+            elif key == ord('2'): arena_theme = 'TOKYO'
+            elif key == ord('3'): arena_theme = 'VIENNA'
             # Select Bat Color
             elif key == ord('4'): bat_color = 'RED'
             elif key == ord('5'): bat_color = 'BLUE'
             elif key == ord('6'): bat_color = 'GREEN'
             
             elif key == 13 or key == 32: # ENTER or SPACE to start
+                stars = {'INA':3.0, 'IND':3.5, 'JPN':4.0, 'BRA':4.5, 'CHN':5.0}.get(enemy_team, 4.0)
                 game = Game()
-                game.apply_difficulty(difficulty)
+                game.apply_difficulty(stars)
+                game.player_team = player_team
+                game.enemy_team = enemy_team
                 app_state = 'GAME'
 
         elif app_state == 'GAME':
@@ -163,7 +201,7 @@ def main():
                 game.enemy_team = et
                 game.round = old_round + 1
             elif key == ord('m'): # Back to menu
-                app_state = 'TITLE'
+                app_state = 'SPLASH'
 
     cap.release()
     cv2.destroyAllWindows()
