@@ -1,11 +1,11 @@
-# 🏓 FIPA World Cup — Computer Vision Table Tennis Game
+# 🏓 FIPA World Cup : Computer Vision Table Tennis Game
 
-> **Final Project — Pengolahan Citra dan Visi (PCV)**  
+> Final Project Pengolahan Citra dan Visi (PCV)  
 > Institut Teknologi Sepuluh Nopember (ITS)
 
-FIPA World Cup adalah game **tenis meja 3D** berbasis **Computer Vision** yang dikontrol menggunakan **gerakan tangan** secara real-time melalui webcam. Pemain menggerakkan bet di layar cukup dengan menggerakkan tangan di depan kamera, tanpa memerlukan controller atau keyboard apapun untuk bermain.
+FIPA World Cup adalah game tenis meja 3D berbasis Computer Vision yang dikontrol pakai gerakan tangan secara real-time lewat webcam. Pemain cukup menggerakkan tangan di depan kamera untuk mengontrol bet, tanpa perlu controller atau keyboard.
 
-Game ini mengusung tema **turnamen tenis meja internasional** dengan pilihan tim dari 5 negara, 3 venue dunia nyata, efek suara stadion, dan musik tema yang imersif.
+Game ini punya tema turnamen tenis meja internasional, dengan pilihan tim dari 5 negara, 3 venue, efek suara stadion, dan musik tema.
 
 ---
 
@@ -35,8 +35,8 @@ Game ini mengusung tema **turnamen tenis meja internasional** dengan pilihan tim
 | **Kontrol Gesture Tangan** | Menggerakkan bet menggunakan centroid tangan yang dideteksi webcam |
 | **Deteksi Gestur FIST / OPEN** | Kepalan tangan (FIST) untuk memilih menu, tangan terbuka (OPEN) untuk navigasi |
 | **5 Tim Nasional** | Indonesia 🇮🇩, India 🇮🇳, Jepang 🇯🇵, Brazil 🇧🇷, China 🇨🇳 |
-| **3 Venue Turnamen** | Chengdu 🟢, Tokyo 🔵, Vienna 🔴 — masing-masing dengan skema warna unik |
-| **3 Warna Bet** | Merah, Biru, Hitam — menggunakan gambar bet PNG transparan |
+| **3 Venue Turnamen** | Chengdu 🟢, Tokyo 🔵, Vienna 🔴, masing-masing punya skema warna sendiri |
+| **3 Warna Bet** | Merah, Biru, Hitam (pakai gambar bet PNG transparan) |
 | **Difficulty Dinamis** | Tingkat kesulitan AI otomatis berdasarkan rating bintang tim lawan |
 | **Perspektif 3D** | Meja digambar dengan proyeksi perspektif manual (trapesium) |
 | **Stadion Bertingkat** | Background gradien vertikal dengan struktur tribun penonton |
@@ -133,9 +133,9 @@ Jika solidity ≤ 0.88 → OPEN (tangan terbuka, ada celah antar jari)
 
 ## 📝 Penjelasan Kode per Modul
 
-### 1. `main.py` — Application Controller
+### 1. `main.py` (Application Controller)
 
-File ini adalah **entry point** aplikasi dan bertanggung jawab sebagai pusat kendali (*orchestrator*) seluruh modul.
+File ini jadi entry point aplikasi dan bertugas sebagai pusat kendali (orchestrator) dari semua modul.
 
 #### Inisialisasi Komponen
 
@@ -151,7 +151,7 @@ renderer = Renderer()                        # Rendering visual
 
 #### State Machine Loop
 
-Loop utama (`while True`) membaca frame webcam setiap iterasi, menjalankan deteksi tangan, lalu me-route logika dan rendering berdasarkan `app_state`:
+Loop utama (`while True`) baca frame webcam tiap iterasi, jalankan deteksi tangan, terus route logika dan rendering sesuai `app_state`:
 
 ```python
 while True:
@@ -174,7 +174,7 @@ while True:
 
 #### Hold-to-Start Logic
 
-Pada layar CUSTOMIZE, tombol START GAME memerlukan gesture FIST ditahan selama **3 detik penuh** sebelum game dimulai. Ini mencegah transisi tak sengaja:
+Di layar CUSTOMIZE, tombol START GAME harus ditahan (FIST) selama 3 detik penuh baru game mulai. Ini supaya tidak ke-trigger secara tidak sengaja:
 
 ```python
 if start_hold_start_time is None:
@@ -188,7 +188,7 @@ if hold_progress >= 1.0:
 
 #### Sistem Difficulty
 
-Tingkat kesulitan AI ditentukan berdasarkan **rating bintang** tim lawan yang dipilih:
+Tingkat kesulitan AI ditentukan dari rating bintang tim lawan yang dipilih:
 
 ```python
 stars = {'INA': 3.0, 'IND': 3.5, 'JPN': 4.0, 'BRA': 4.5, 'CHN': 5.0}.get(enemy_team, 4.0)
@@ -205,9 +205,9 @@ game.apply_difficulty(stars)
 
 ---
 
-### 2. `hand_detector.py` — Deteksi Tangan
+### 2. `hand_detector.py` (Deteksi Tangan)
 
-Modul ini mengimplementasikan pipeline Computer Vision untuk mendeteksi tangan dan mengenali gesture secara real-time.
+Modul ini berisi pipeline Computer Vision buat mendeteksi tangan dan mengenali gesture secara real-time.
 
 #### Pipeline Deteksi
 
@@ -221,7 +221,7 @@ Frame BGR → HSV → Color Masking → Morphology → Contour → Centroid + Ge
 hsv = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2HSV)
 ```
 
-Frame dikonversi dari BGR ke HSV karena ruang warna HSV lebih robust terhadap perubahan pencahayaan dibanding RGB/BGR.
+Frame dikonversi dari BGR ke HSV karena HSV lebih tahan terhadap perubahan pencahayaan dibanding RGB/BGR.
 
 ##### Langkah 2: Color Masking (Segmentasi Warna)
 
@@ -233,11 +233,11 @@ condition = np.all((hsv >= LOWER_SKIN) & (hsv <= UPPER_SKIN), axis=2)
 mask = np.where(condition, np.uint8(255), np.uint8(0))
 ```
 
-> **Catatan:** Deteksi menggunakan rentang warna **sarung tangan biru** (hue 90–130). Pemain perlu memakai sarung tangan biru atau objek berwarna biru di tangan.
+> Deteksi menggunakan rentang warna sarung tangan biru (hue 90-130). Pemain perlu pakai sarung tangan biru atau objek berwarna biru di tangan.
 
 ##### Langkah 3: Operasi Morfologi Manual
 
-Operasi erode dan dilate diimplementasikan **secara manual menggunakan NumPy** (bukan `cv2.erode`/`cv2.dilate`) sebagai bagian dari constraint proyek:
+Operasi erode dan dilate diimplementasikan secara manual pakai NumPy (bukan `cv2.erode`/`cv2.dilate`), sesuai constraint proyek:
 
 ```python
 def manual_erode(mask, ksize=3):
@@ -261,7 +261,7 @@ def manual_dilate(mask, ksize=3):
     return result
 ```
 
-Operasi **Opening** (erode → dilate) menghilangkan noise kecil, dan **Closing** (dilate → erode) menutup lubang dalam mask. Dijalankan pada resolusi 1/4 untuk efisiensi:
+Opening (erode lalu dilate) untuk menghilangkan noise kecil, dan Closing (dilate lalu erode) untuk menutup lubang di mask. Dijalankan di resolusi 1/4 supaya lebih efisien:
 
 ```python
 small = mask[::2, ::2]                          # Downscale 2x
@@ -290,13 +290,13 @@ solidity = area / float(hull_area)
 gesture = "FIST" if solidity > 0.88 else "OPEN"
 ```
 
-**Prinsip:** Tangan yang mengepal (FIST) memiliki kontur yang sangat "solid" (mendekati convex hull), sedangkan tangan terbuka memiliki celah antar jari sehingga soliditynya lebih rendah.
+Intinya, tangan yang mengepal (FIST) punya kontur yang rapat dan solid (mendekati convex hull), sementara tangan terbuka ada celah antar jari jadi solidity-nya lebih rendah.
 
 ---
 
-### 3. `game.py` — Logika Permainan
+### 3. `game.py` (Logika Permainan)
 
-Modul ini mengatur seluruh fisika bola, pergerakan AI, deteksi tabrakan, dan sistem skor.
+Modul ini mengatur fisika bola, pergerakan AI, deteksi tabrakan, dan sistem skor.
 
 #### Koordinat Permainan
 
@@ -314,7 +314,7 @@ self.ball_x += self.ball_vx    # Gerak horizontal
 self.ball_z += self.ball_vz    # Gerak kedalaman (menuju/menjauh pemain)
 ```
 
-Kecepatan bola meningkat sedikit setiap kali mengenai paddle (`*= -1.05`), dan bertambah signifikan setiap kali pemain mencetak skor (`+= 0.15`), membuat permainan semakin intens.
+Kecepatan bola naik sedikit tiap kena paddle (`*= -1.05`), dan naik lebih banyak tiap pemain cetak skor (`+= 0.15`), jadi makin lama makin cepat.
 
 #### Deteksi Tabrakan
 
@@ -322,7 +322,7 @@ Kecepatan bola meningkat sedikit setiap kali mengenai paddle (`*= -1.05`), dan b
 # Pemain (Z melintasi 0.0)
 if prev_z >= 0.0 and self.ball_z < 0.0:
     if abs(self.ball_x - self.player_x) <= PADDLE_WIDTH / 2.0:
-        # HIT — pantulkan bola
+         # HIT, pantulkan bola
         self.ball_vz *= -1.05
 
         # Efek spin: gabungan posisi kontak + kecepatan ayunan tangan
@@ -330,12 +330,12 @@ if prev_z >= 0.0 and self.ball_z < 0.0:
         pos_impact = (self.ball_x - self.player_x) * 0.05
         self.ball_vx = pos_impact + swing_impact
     else:
-        self._trigger_point('AI')  # MISS — lawan dapat poin
+         self._trigger_point('AI')  # MISS, lawan dapat poin
 ```
 
 #### AI (Kecerdasan Buatan)
 
-AI bergerak menuju posisi bola dengan kecepatan yang diskalakan berdasarkan difficulty:
+AI bergerak menuju posisi bola dengan kecepatan yang disesuaikan dengan tingkat kesulitan:
 
 ```python
 ai_speed = (0.01 + ((stars - 3.0) / 2.0) * 0.025) * ball_speed
@@ -343,7 +343,7 @@ diff = self.ball_x - self.ai_x
 self.ai_x += max(-ai_speed, min(ai_speed, diff))
 ```
 
-AI juga memiliki **target logic** — ia mengarahkan bola ke sisi berlawanan dari posisi pemain:
+AI juga punya target logic, yaitu mengarahkan bola ke sisi yang berlawanan dari posisi pemain:
 
 ```python
 if self.player_x < 0.5:
@@ -352,7 +352,7 @@ else:
     target_x = random.uniform(0.1, 0.4)   # Arahkan ke kiri
 ```
 
-Pada difficulty rendah (≤ 3.5 bintang), AI memiliki **50% peluang melakukan kesalahan** arah.
+Pada difficulty rendah (3.5 bintang ke bawah), AI punya 50% kemungkinan salah arah.
 
 #### Game States
 
@@ -364,13 +364,13 @@ waiting ──(hand terdeteksi 1.5s)──> playing ──(skor)──> point_sc
 
 ---
 
-### 4. `renderer.py` — Rendering Visual
+### 4. `renderer.py` (Rendering Visual)
 
-Modul terbesar yang bertanggung jawab menggambar seluruh elemen visual menggunakan **OpenCV drawing primitives**.
+Modul paling besar, bertugas menggambar semua elemen visual pakai OpenCV drawing primitives.
 
 #### Proyeksi Perspektif 3D
 
-Meja digambar sebagai **trapesium** untuk menciptakan ilusi kedalaman:
+Meja digambar sebagai trapesium untuk bikin kesan kedalaman:
 
 ```python
 FAR_LEFT   = (150, 260)   # Titik jauh kiri  (lebih sempit)
@@ -399,7 +399,7 @@ Tiga venue dengan profil warna berbeda:
 
 #### Background Stadion dengan Gradient
 
-Background bukan flat/solid, melainkan menggunakan **gradasi vertikal** untuk kesan pencahayaan stadium:
+Background bukan warna flat, tapi pakai gradasi vertikal supaya ada kesan pencahayaan stadium:
 
 ```python
 multipliers = np.linspace(0.4, 1.5, H)   # Atas gelap (40%), bawah terang (150%)
@@ -407,11 +407,11 @@ gradient = np.stack([b * mult, g * mult, r * mult], axis=2)
 canvas[:] = gradient
 ```
 
-Ditambahkan juga **garis tribun** horizontal dan vertikal untuk simulasi tempat duduk penonton.
+Ada juga garis tribun horizontal dan vertikal buat simulasi tempat duduk penonton.
 
 #### Crowd Animation
 
-400 titik warna-warni statis untuk menyimulasikan penonton, ditambah efek **camera flash** dinamis yang berkedip setiap frame:
+400 titik warna-warni statis buat simulasi penonton, plus efek camera flash yang berkedip tiap frame:
 
 ```python
 self.crowd_x = np.random.randint(0, W, 400)
@@ -424,7 +424,7 @@ flash_count = np.random.randint(0, 4)
 
 #### Sistem Skor Dinamis
 
-Teks skor menampilkan **nama negara** dengan **warna identitas nasional** menggunakan teknik outline (teks ditimpa dua kali):
+Teks skor menampilkan nama negara dengan warna khas nasional. Tekniknya: teks digambar dua kali (outline tebal dulu, lalu inner tipis di atasnya):
 
 | Tim | Warna Teks (Inner) | Warna Outline (Outer) |
 |---|---|---|
@@ -442,7 +442,7 @@ cv2.putText(canvas, txt, pos, font, scale, inner_col, 4)   # Inner
 
 #### Paddle dengan Gambar Bet (PNG Transparan)
 
-Paddle pemain menggunakan **gambar bet PNG** (RGBA) yang di-resize dan dirotasi berdasarkan kecepatan gerakan tangan:
+Paddle pemain pakai gambar bet PNG (RGBA) yang di-resize dan dirotasi sesuai kecepatan gerakan tangan:
 
 ```python
 tilt_deg = max(-35.0, min(35.0, dx * 400.0))
@@ -479,7 +479,7 @@ Tersedia 3 gambar bet: `batmerah.png`, `batbiru.png`, `bathitam.png`. Jika gamba
 
 ## 🔊 Sistem Audio
 
-Audio dikelola menggunakan **Windows MCI API** via `ctypes` (modul `audio.py`) — **tanpa library eksternal**. Semua pemanggilan audio berjalan secara **non-blocking** menggunakan `threading.Thread` agar tidak menyebabkan lag pada game loop.
+Audio dikelola lewat Windows MCI API via `ctypes` (modul `audio.py`), tanpa library eksternal. Semua pemanggilan audio berjalan non-blocking pakai `threading.Thread` supaya tidak bikin lag di game loop.
 
 | Alias | File | Kondisi |
 |---|---|---|
@@ -506,7 +506,7 @@ def play(alias, filepath, loop=False):
     t.start()
 ```
 
-Path audio menggunakan `os.path.dirname(__file__)` agar tidak bergantung pada CWD saat menjalankan program.
+Path audio pakai `os.path.dirname(__file__)` supaya tidak tergantung CWD saat program dijalankan.
 
 ---
 
@@ -545,7 +545,7 @@ asset/
 pip install opencv-python numpy
 ```
 
-> **Catatan:** Tidak memerlukan `pygame` atau library audio eksternal lainnya. Audio ditangani oleh `ctypes` + `winmm.dll` + `threading` bawaan Windows/Python.
+> Tidak perlu `pygame` atau library audio eksternal. Audio ditangani `ctypes` + `winmm.dll` + `threading` bawaan Windows/Python.
 
 ### Menjalankan Aplikasi
 
@@ -580,7 +580,7 @@ python main.py
 
 ## 👤 Kontributor
 
-- **Mahasiswa ITS** — Final Project Pengolahan Citra dan Visi (PCV)
+- Mahasiswa ITS, Final Project Pengolahan Citra dan Visi (PCV)
 
 ---
 
