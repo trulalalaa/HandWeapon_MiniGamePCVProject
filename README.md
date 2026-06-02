@@ -36,16 +36,17 @@ Game ini mengusung tema **turnamen tenis meja internasional** dengan pilihan tim
 | **Deteksi Gestur FIST / OPEN** | Kepalan tangan (FIST) untuk memilih menu, tangan terbuka (OPEN) untuk navigasi |
 | **5 Tim Nasional** | Indonesia 🇮🇩, India 🇮🇳, Jepang 🇯🇵, Brazil 🇧🇷, China 🇨🇳 |
 | **3 Venue Turnamen** | Chengdu 🟢, Tokyo 🔵, Vienna 🔴 — masing-masing dengan skema warna unik |
-| **3 Warna Bet** | Merah, Biru, Hijau |
+| **3 Warna Bet** | Merah, Biru, Hitam — menggunakan gambar bet PNG transparan |
 | **Difficulty Dinamis** | Tingkat kesulitan AI otomatis berdasarkan rating bintang tim lawan |
 | **Perspektif 3D** | Meja digambar dengan proyeksi perspektif manual (trapesium) |
 | **Stadion Bertingkat** | Background gradien vertikal dengan struktur tribun penonton |
 | **Crowd Animated** | 400 titik warna-warni yang bergerak menyimulasikan penonton |
-| **Efek Suara Realistis** | Suara pantulan bola (ball_sound.mp3) dan riuh penonton (crowd.mp3) |
+| **Efek Suara Non-Blocking** | Audio diputar di background thread agar tidak menyebabkan lag saat collision |
 | **Musik Tema** | Themesong yang loop di seluruh layar menu, berhenti saat pertandingan |
 | **Skor Dinamis** | Teks skor menggunakan nama negara dan warna identitas nasional |
 | **Hold-to-Start** | Tombol START GAME harus ditahan 3 detik untuk mencegah seleksi tidak sengaja |
 | **Morphological Operations Manual** | Erode dan Dilate diimplementasikan manual dengan NumPy |
+| **Dual Window Display** | Window terpisah untuk game dan kamera deteksi tangan |
 
 ---
 
@@ -57,8 +58,8 @@ Game ini mengusung tema **turnamen tenis meja internasional** dengan pilihan tim
 │             (Application Controller / State Machine)        │
 ├──────────┬──────────────┬───────────────┬───────────────────┤
 │          │              │               │                   │
-│   HandDetector    Game          Renderer         Pygame     │
-│   (CV Pipeline)  (Physics)     (Draw All)        (Audio)   │
+│HandDetector    Game          Renderer       audio.py        │
+│(CV Pipeline)  (Physics)     (Draw All)   (MCI + Threading)  │
 │          │              │               │                   │
 │  webcam ─┤  ball_x ─────┤  draw() ──────┤  themesong.mp3   │
 │  HSV mask│  ball_z      │  splash       │  ball_sound.mp3  │
@@ -66,6 +67,12 @@ Game ini mengusung tema **turnamen tenis meja internasional** dengan pilihan tim
 │  centroid│  collision   │  customize    │                   │
 │  gesture │  scoring     │  game         │                   │
 └──────────┴──────────────┴───────────────┴───────────────────┘
+
+Output Windows:
+  ┌──────────────┐  ┌──────────────┐
+  │  TABLE PONG  │  │HAND DETECTION│
+  │  (Game View) │  │(Camera Feed) │
+  └──────────────┘  └──────────────┘
 ```
 
 ---
@@ -85,7 +92,7 @@ SPLASH ──(SPACE)──> TEAM_SELECT ──(FIST/ENTER)──> CUSTOMIZE ─�
 |---|---|---|
 | `SPLASH` | Menampilkan logo FIPA World Cup fullscreen (800×720). Musik tema mulai diputar. | Tekan **SPACE** → `TEAM_SELECT` |
 | `TEAM_SELECT` | Memilih tim pemain (kiri) dan tim lawan (kanan) dari 5 negara. Menampilkan bendera dan rating bintang. | Gesture **FIST** pada tombol CONFIRM atau tekan **ENTER** → `CUSTOMIZE` |
-| `CUSTOMIZE` | Memilih venue (Chengdu/Tokyo/Vienna) dan warna bet (Red/Blue/Green). | **FIST** selama 3 detik di tombol START GAME → `GAME` |
+| `CUSTOMIZE` | Memilih venue (Chengdu/Tokyo/Vienna) dan warna bet (Red/Blue/Black). | **FIST** selama 3 detik di tombol START GAME → `GAME` |
 | `GAME` | Permainan aktif. Tangan mengontrol bet, bola bergerak, AI melawan. | Tekan **R** untuk restart, **M** untuk kembali ke menu |
 
 ---
@@ -106,7 +113,7 @@ SPLASH ──(SPACE)──> TEAM_SELECT ──(FIST/ENTER)──> CUSTOMIZE ─�
 |---|---|
 | `SPACE` / `ENTER` | Konfirmasi / lanjut ke state berikutnya |
 | `1`, `2`, `3` | Pilih venue: Chengdu, Tokyo, Vienna |
-| `4`, `5`, `6` | Pilih warna bat: Red, Blue, Green |
+| `4`, `5`, `6` | Pilih warna bat: Red, Blue, Black |
 | `R` | Restart pertandingan (saat Game Over) |
 | `M` | Kembali ke menu utama |
 | `Q` / `ESC` | Keluar dari aplikasi |
@@ -137,8 +144,6 @@ cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)   # Buka webcam (DirectShow API)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)      # Resolusi input 640x480
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-pygame.mixer.init()                          # Inisialisasi audio engine
-
 detector = HandDetector()                    # Pipeline deteksi tangan
 game     = Game()                            # Logika dan fisika permainan
 renderer = Renderer()                        # Rendering visual
@@ -162,6 +167,9 @@ while True:
     elif app_state == 'GAME':     ...
     elif app_state == 'TEAM_SELECT': ...
     elif app_state == 'CUSTOMIZE':   ...
+
+    cv2.imshow('TABLE PONG', game_canvas)       # Window game
+    cv2.imshow('HAND DETECTION', debug_frame)   # Window kamera deteksi
 ```
 
 #### Hold-to-Start Logic
@@ -358,7 +366,7 @@ waiting ──(hand terdeteksi 1.5s)──> playing ──(skor)──> point_sc
 
 ### 4. `renderer.py` — Rendering Visual
 
-Modul terbesar (~590 baris) yang bertanggung jawab menggambar seluruh elemen visual menggunakan **OpenCV drawing primitives**.
+Modul terbesar yang bertanggung jawab menggambar seluruh elemen visual menggunakan **OpenCV drawing primitives**.
 
 #### Proyeksi Perspektif 3D
 
@@ -403,13 +411,15 @@ Ditambahkan juga **garis tribun** horizontal dan vertikal untuk simulasi tempat 
 
 #### Crowd Animation
 
-400 titik warna-warni bergerak berkedip untuk menyimulasikan penonton:
+400 titik warna-warni statis untuk menyimulasikan penonton, ditambah efek **camera flash** dinamis yang berkedip setiap frame:
 
 ```python
 self.crowd_x = np.random.randint(0, W, 400)
 self.crowd_y = np.random.randint(20, 250, 400)
-# Setiap frame: posisi bergoyang ±2 pixel
-jitter_x = self.crowd_x + np.random.randint(-2, 3, len(self.crowd_x))
+
+# Camera flashes (dynamic per frame)
+np.random.seed(int(time.time() * 15) % (2**32))
+flash_count = np.random.randint(0, 4)
 ```
 
 #### Sistem Skor Dinamis
@@ -430,17 +440,21 @@ cv2.putText(canvas, txt, pos, font, scale, outer_col, 9)   # Outline
 cv2.putText(canvas, txt, pos, font, scale, inner_col, 4)   # Inner
 ```
 
-#### Paddle dengan Rotasi (Tilt)
+#### Paddle dengan Gambar Bet (PNG Transparan)
 
-Paddle pemain memiliki efek **kemiringan** berdasarkan kecepatan gerakan tangan:
+Paddle pemain menggunakan **gambar bet PNG** (RGBA) yang di-resize dan dirotasi berdasarkan kecepatan gerakan tangan:
 
 ```python
 tilt_deg = max(-35.0, min(35.0, dx * 400.0))
-tilt_rad = math.radians(tilt_deg)
-# Titik-titik ellipse dirotasi menggunakan rotasi 2D
-rx = cos_t * (pt_x - hinge_x) - sin_t * (pt_y - hinge_y) + hinge_x
-ry = sin_t * (pt_x - hinge_x) + cos_t * (pt_y - hinge_y) + hinge_y
+M = cv2.getRotationMatrix2D(rot_center, -tilt_deg, 1.0)
+rotated = cv2.warpAffine(resized, M, (new_w, new_h), borderValue=(0, 0, 0, 0))
+
+# Alpha blending ke canvas
+alpha = roi[:, :, 3] / 255.0
+canvas[y1:y2, x1:x2] = (alpha * fg + (1 - alpha) * bg)
 ```
+
+Tersedia 3 gambar bet: `batmerah.png`, `batbiru.png`, `bathitam.png`. Jika gambar tidak ditemukan, fallback ke ellipse sederhana.
 
 ---
 
@@ -465,13 +479,34 @@ ry = sin_t * (pt_x - hinge_x) + cos_t * (pt_y - hinge_y) + hinge_y
 
 ## 🔊 Sistem Audio
 
-Audio dikelola menggunakan **Pygame Mixer** dengan pembagian channel:
+Audio dikelola menggunakan **Windows MCI API** via `ctypes` (modul `audio.py`) — **tanpa library eksternal**. Semua pemanggilan audio berjalan secara **non-blocking** menggunakan `threading.Thread` agar tidak menyebabkan lag pada game loop.
 
-| Channel | File | Kondisi |
+| Alias | File | Kondisi |
 |---|---|---|
-| **Music** (pygame.mixer.music) | `themesong.mp3` | Loop di menu (SPLASH, TEAM_SELECT, CUSTOMIZE). Stop saat GAME. |
-| **Channel 1** (pygame.mixer.Channel) | `crowd.mp3` | Play saat *waiting*, *point_scored*, dan *game_over*. Stop saat rally aktif. |
-| **Channel 0** (default) | `ball_sound.mp3` | Play setiap bola mengenai paddle atau dinding. |
+| `theme` | `themesong.mp3` | Loop di menu (SPLASH, TEAM_SELECT, CUSTOMIZE). Stop saat GAME. |
+| `crowd` | `crowd.mp3` | Play saat *waiting*, *point_scored*, dan *game_over*. Stop saat rally aktif. |
+| `ball0`–`ball3` | `ball_sound.mp3` | Play setiap bola mengenai paddle atau dinding. Menggunakan 4 alias bergiliran agar suara bisa overlap. |
+
+Implementasi menggunakan `mciSendStringW` dari `winmm.dll` bawaan Windows, dijalankan di daemon thread:
+
+```python
+import ctypes
+import threading
+
+winmm = ctypes.windll.winmm
+
+def _play_async(alias, filepath, loop):
+    winmm.mciSendStringW(f'stop {alias}', ...)
+    winmm.mciSendStringW(f'close {alias}', ...)
+    winmm.mciSendStringW(f'open "{filepath}" type mpegvideo alias {alias}', ...)
+    winmm.mciSendStringW(f'play {alias} repeat', ...)
+
+def play(alias, filepath, loop=False):
+    t = threading.Thread(target=_play_async, args=(alias, filepath, loop), daemon=True)
+    t.start()
+```
+
+Path audio menggunakan `os.path.dirname(__file__)` agar tidak bergantung pada CWD saat menjalankan program.
 
 ---
 
@@ -483,6 +518,9 @@ asset/
 ├── themesong.mp3               # Musik tema menu
 ├── ball_sound.mp3              # Efek suara pantulan bola
 ├── crowd.mp3                   # Efek suara riuh penonton
+├── batmerah.png                # Gambar bet merah (RGBA)
+├── batbiru.png                 # Gambar bet biru (RGBA)
+├── bathitam.png                # Gambar bet hitam (RGBA)
 ├── scoreboard.png              # (Aset cadangan)
 ├── indonesia_round_icon_64.png # Bendera Indonesia (40x40)
 ├── india_round_icon_64.png     # Bendera India
@@ -504,8 +542,10 @@ asset/
 ### Instalasi Dependencies
 
 ```bash
-pip install opencv-python numpy pygame mediapipe
+pip install opencv-python numpy
 ```
+
+> **Catatan:** Tidak memerlukan `pygame` atau library audio eksternal lainnya. Audio ditangani oleh `ctypes` + `winmm.dll` + `threading` bawaan Windows/Python.
 
 ### Menjalankan Aplikasi
 
@@ -516,7 +556,7 @@ python main.py
 
 ### Cara Bermain
 
-1. Jalankan `main.py`, logo splash screen akan muncul
+1. Jalankan `main.py`, akan muncul **2 window**: game (TABLE PONG) dan kamera deteksi (HAND DETECTION)
 2. Tekan **SPACE** untuk masuk ke pemilihan tim
 3. Kepalkan tangan (**FIST**) di atas nama tim untuk memilih, lalu tekan tombol **CONFIRM**
 4. Pilih **venue** dan **warna bat** di layar kustomisasi
@@ -533,7 +573,8 @@ python main.py
 | **Python** | 3.12 | Bahasa pemrograman utama |
 | **OpenCV** | 4.x | Capture webcam, image processing, rendering |
 | **NumPy** | 1.x | Operasi array, morphology manual, gradient |
-| **Pygame** | 2.6.1 | Audio mixer (musik dan efek suara) |
+| **ctypes** | (built-in) | Interface ke Windows MCI API untuk audio |
+| **winmm.dll** | (Windows) | Memutar file MP3 via MCI (Media Control Interface) |
 
 ---
 

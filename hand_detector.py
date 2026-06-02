@@ -1,10 +1,6 @@
 import cv2
 import numpy as np
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  MANUAL MORPHOLOGICAL OPERATIONS  (NumPy loops — project constraint)
-# ─────────────────────────────────────────────────────────────────────────────
-
 def manual_erode(mask: np.ndarray, ksize: int = 3) -> np.ndarray:
     pad = ksize // 2
     padded = np.pad(mask, pad, mode='constant', constant_values=0)
@@ -29,18 +25,8 @@ def manual_opening(mask: np.ndarray, ksize: int = 3) -> np.ndarray:
 def manual_closing(mask: np.ndarray, ksize: int = 3) -> np.ndarray:
     return manual_erode(manual_dilate(mask, ksize), ksize)
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  HAND DETECTOR
-# ─────────────────────────────────────────────────────────────────────────────
-
 class HandDetector:
-    """
-    Detects hand in a BGR frame and returns:
-      centroid      : (cx, cy) in the ORIGINAL frame coordinates, or None
-      debug_frame   : BGR frame with overlays for the left panel
-    """
 
-    # HSV blue-glove color bounds
     LOWER_SKIN = np.array([90,  45,  20], dtype=np.uint8)
     UPPER_SKIN = np.array([130, 255, 255], dtype=np.uint8)
 
@@ -53,14 +39,11 @@ class HandDetector:
     def process(self, bgr_frame: np.ndarray):
         h, w = bgr_frame.shape[:2]
 
-        # ── Step 1: Convert BGR → HSV
         hsv = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2HSV)
 
-        # ── Step 2: Masking
         condition = np.all((hsv >= self.LOWER_SKIN) & (hsv <= self.UPPER_SKIN), axis=2)
         mask = np.where(condition, np.uint8(255), np.uint8(0))
 
-        # ── Step 3: Morphology (1/4 res)
         small = mask[::2, ::2]
         cleaned_small = manual_opening(small, ksize=3)
         cleaned_small = manual_closing(cleaned_small, ksize=3)
@@ -68,7 +51,6 @@ class HandDetector:
         cleaned = np.repeat(np.repeat(cleaned_small, 2, axis=0), 2, axis=1)
         cleaned = cleaned[:h, :w]
 
-        # ── Step 4: Contours
         contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         self.centroid = None
@@ -87,14 +69,12 @@ class HandDetector:
                     cy = int(M['m01'] / M['m00'])
                     self.centroid = (cx, cy)
                 
-                # Gesture Detection via Solidity
                 hull = cv2.convexHull(largest)
                 hull_area = cv2.contourArea(hull)
                 if hull_area > 0:
                     solidity = area / float(hull_area)
                     gesture = "FIST" if solidity > 0.88 else "OPEN"
 
-        # ── Step 5: Debug Overlay
         debug_frame = bgr_frame.copy()
 
         if self.contour is not None:
