@@ -2,7 +2,7 @@
 
 **Nama**  : Bagas Aryo Dananjoyo - 5024241031
 
-> Final Project Pengolahan Citra dan Visi (PCV)  
+> Final Project Pengolahan Citra dan Video  (PCV)  
 > Institut Teknologi Sepuluh Nopember (ITS)
 
 FIPA World Cup adalah game tenis meja 3D berbasis Computer Vision yang dikontrol pakai gerakan tangan secara real-time lewat webcam. Pemain cukup menggerakkan tangan di depan kamera untuk mengontrol bet, tanpa perlu controller atau keyboard.
