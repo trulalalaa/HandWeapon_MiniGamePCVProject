@@ -1,5 +1,8 @@
 # 🏓 FIPA World Cup : Computer Vision Table Tennis Game
 
+**Nama**  : Bagas Aryo Dananjoyo
+**NRP**   : 5024241031
+
 > Final Project Pengolahan Citra dan Visi (PCV)  
 > Institut Teknologi Sepuluh Nopember (ITS)
 
