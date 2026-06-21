@@ -43,13 +43,9 @@ Bagian ini berisi dokumentasi visual dari proyek **FIPA World Cup**.
 
 ### Video Demo
 
-Video demo permainan dapat diputar langsung melalui player berikut:
+Oleh karena size video yang terlalu besar, Video demo permainan dapat diputar langsung melalui player berikut:
 
-<video src="Video.mp4" controls width="100%">
-  Browser tidak mendukung pemutaran video langsung. Silakan buka file demo melalui tautan ini: <a href="Video.mp4">Tonton Video Demo</a>.
-</video>
-
-[Buka Video Demo](Video.mp4)
+[Video Demo](Video.mp4)
 
 Video ini mendokumentasikan alur utama aplikasi, mulai dari tampilan awal, pemilihan tim, kustomisasi venue dan warna bet, sampai gameplay tenis meja berbasis deteksi gesture tangan.
 
