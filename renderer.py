@@ -4,11 +4,13 @@ import numpy as np
 W  = 800
 H  = 720
 
+# --- Titik perspektif meja (proyeksi 3D ke 2D) ---
 FAR_LEFT   = (150, 260)
 FAR_RIGHT  = (650, 260)
 NEAR_LEFT  = (50,  680)
 NEAR_RIGHT = (750, 680)
 
+# --- Fungsi konversi koordinat game (0-1) ke koordinat layar ---
 def to_screen(game_x: float, game_z: float) -> tuple:
     left_edge  = NEAR_LEFT[0] + game_z * (FAR_LEFT[0] - NEAR_LEFT[0])
     right_edge = NEAR_RIGHT[0] + game_z * (FAR_RIGHT[0] - NEAR_RIGHT[0])
@@ -18,6 +20,7 @@ def to_screen(game_x: float, game_z: float) -> tuple:
     return int(x_screen), int(y_screen)
 
 class Renderer:
+    # --- Load asset (bendera, logo, gambar bat) ---
     def __init__(self):
         self.floor = np.array([FAR_LEFT, FAR_RIGHT, NEAR_RIGHT, NEAR_LEFT], dtype=np.int32)
         
@@ -56,7 +59,9 @@ class Renderer:
         colors = [(200, 50, 50), (50, 200, 50), (50, 50, 200), (200, 200, 50), (200, 200, 200), (255, 200, 0)]
         self.crowd_c = [colors[np.random.randint(0, len(colors))] for _ in range(400)]
         
+    # --- Render game utama (meja, bola, paddle, scoreboard) ---
     def draw(self, game, theme: str, bat_color: str) -> np.ndarray:
+        # --- Warna tema arena ---
         if theme == 'TOKYO':
             bg_col = (40, 40, 100)       
             floor_col = (200, 100, 20)   
@@ -75,6 +80,7 @@ class Renderer:
         canvas = np.zeros((H, W, 3), dtype=np.uint8)
         b, g, r = bg_col
         
+        # --- Gradient background ---
         multipliers = np.linspace(0.4, 1.5, H).reshape(-1, 1)
         col_b = np.clip(b * multipliers, 0, 255)
         col_g = np.clip(g * multipliers, 0, 255)
@@ -82,12 +88,14 @@ class Renderer:
         gradient_col = np.stack([col_b, col_g, col_r], axis=2).astype(np.uint8)
         canvas[:] = gradient_col
         
+        # --- Gambar tribun penonton ---
         tier_col = (int(b*0.5), int(g*0.5), int(r*0.5))
         for y_tier in range(40, int(FAR_LEFT[1]) + 20, 35):
             cv2.line(canvas, (0, y_tier), (W, y_tier), tier_col, 2)
             for x_sec in range((y_tier * 2) % 150, W, 150):
                 cv2.line(canvas, (x_sec, y_tier), (x_sec, max(0, y_tier-35)), tier_col, 1)
         
+        # --- Gambar meja + garis tengah ---
         cv2.fillPoly(canvas, [self.floor], floor_col)
         cv2.polylines(canvas, [self.floor], True, line_col, 3)
         mid_far = ((FAR_LEFT[0] + FAR_RIGHT[0]) // 2, FAR_LEFT[1])
@@ -114,6 +122,7 @@ class Renderer:
             
         return canvas
 
+    # --- Gambar paddle (bat) dengan rotasi berdasarkan arah gerak ---
     def _draw_paddle(self, canvas, px, pz, bat_key, label, dx=0.0):
         import math
         cx, cy = to_screen(px, pz)
@@ -186,6 +195,7 @@ class Renderer:
                 cv2.putText(canvas, label, (cx - ts[0]//2, label_y), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.45, (200,200,200), 1, cv2.LINE_AA)
 
+    # --- Gambar bola dengan skala perspektif ---
     def _draw_ball(self, canvas, bx, bz, line_col):
         cx, cy = to_screen(bx, bz)
         cy -= int(40 * (1-bz*0.6))
@@ -195,6 +205,7 @@ class Renderer:
         cv2.circle(canvas, (cx, cy), radius, (200, 255, 255), -1)
         cv2.circle(canvas, (cx, cy), radius, line_col, 2)
         
+    # --- Animasi penonton di tribun ---
     def _draw_crowd(self, canvas):
         import time
         for x, y, c in zip(self.crowd_x, self.crowd_y, self.crowd_c):
@@ -209,6 +220,7 @@ class Renderer:
             cv2.circle(canvas, (x, y), 8, (255, 255, 255), 1)
 
 
+    # --- Overlay gambar PNG dengan alpha blending ---
     def _overlay_image(self, bg, fg, x, y):
         h, w = fg.shape[:2]
         if y+h > bg.shape[0] or x+w > bg.shape[1] or x < 0 or y < 0:
@@ -221,6 +233,7 @@ class Renderer:
         else:
             bg[y:y+h, x:x+w] = fg
 
+    # --- Gambar scoreboard World Cup (bendera + skor) ---
     def _draw_world_cup_scoreboard(self, canvas, score_p, score_e, pt, et):
         cx = W // 2
         y = 15
@@ -244,6 +257,7 @@ class Renderer:
         cv2.putText(canvas, et, (cx + 65, y + 33), cv2.FONT_HERSHEY_DUPLEX, 1.0, (255, 200, 200), 2)
 
 
+    # --- Tampilan "Show your hand to start" ---
     def _draw_waiting(self, canvas, game):
         cv2.putText(canvas, "Show your HAND to start!", (160, 330),
                     cv2.FONT_HERSHEY_DUPLEX, 1.1, (0, 255, 120), 2)
@@ -254,6 +268,7 @@ class Renderer:
             cv2.rectangle(canvas, (200, 350), (600, 368), (80, 80, 80), -1)
             cv2.rectangle(canvas, (200, 350), (200 + bar_w, 368), (0, 255, 120), -1)
 
+    # --- Tampilan "TEAM SCORES!" saat point ---
     def _draw_point_scored(self, canvas, game):
         team_code = getattr(game, 'player_team', 'INA') if game._point_scorer == 'PLAYER' else getattr(game, 'enemy_team', 'BRA')
         team_names = {'INA': 'INDONESIA', 'IND': 'INDIA', 'JPN': 'JAPAN', 'BRA': 'BRAZIL', 'CHN': 'CHINA'}
@@ -281,6 +296,7 @@ class Renderer:
         cv2.putText(canvas, txt, (tx, ty), font, scale, outer_col, thick_outer)
         cv2.putText(canvas, txt, (tx, ty), font, scale, inner_col, thick_inner)
 
+    # --- Tampilan "TEAM WINS!" saat game over ---
     def _draw_game_over(self, canvas, game):
         team_code = getattr(game, 'player_team', 'INA') if game.winner == 'PLAYER' else getattr(game, 'enemy_team', 'BRA')
         team_names = {'INA': 'INDONESIA', 'IND': 'INDIA', 'JPN': 'JAPAN', 'BRA': 'BRAZIL', 'CHN': 'CHINA'}
@@ -314,6 +330,7 @@ class Renderer:
         ts2 = cv2.getTextSize("Press  M  for Main Menu", cv2.FONT_HERSHEY_SIMPLEX, 0.9, 1)[0]
         cv2.putText(canvas, "Press  M  for Main Menu", ((W - ts2[0])//2, 500), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (100, 200, 255), 1)
 
+    # --- Layar splash (logo + press space) ---
     def draw_splash_screen(self) -> np.ndarray:
         full_w = W
         full_h = H
@@ -349,6 +366,7 @@ class Renderer:
         self._draw_cursor(canvas, cursor_pos, gesture)
         return canvas
         
+    # --- Layar pilih tim (player & enemy) ---
     def draw_team_select_screen(self, player_team, enemy_team, cursor_pos=None, gesture=None) -> np.ndarray:
         canvas = np.full((H, W, 3), (34, 139, 34), dtype=np.uint8)
         
@@ -441,6 +459,7 @@ class Renderer:
         self._draw_cursor(canvas, cursor_pos, gesture)
         return canvas
 
+    # --- Layar customization (pilih arena & warna bat) ---
     def draw_customize_screen(self, arena_theme, bat_color, cursor_pos=None, gesture=None, hold_progress=0.0) -> np.ndarray:
         canvas = np.full((H, W, 3), (34, 139, 34), dtype=np.uint8)
         
@@ -518,6 +537,7 @@ class Renderer:
         self._draw_cursor(canvas, cursor_pos, gesture)
         return canvas
 
+    # --- Gambar kursor tangan di layar menu ---
     def _draw_cursor(self, canvas, cursor_pos, gesture):
         if cursor_pos is not None:
             cx, cy = cursor_pos
@@ -528,6 +548,7 @@ class Renderer:
                 cv2.circle(canvas, (cx, cy), 12, (255, 100, 100), 2)
                 cv2.circle(canvas, (cx, cy), 4, (255, 100, 100), -1)
 
+    # --- Gambar bintang rating difficulty ---
     def _draw_stars(self, canvas, x, y, rating):
         import math
         star_radius_outer = 6

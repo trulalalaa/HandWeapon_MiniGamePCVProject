@@ -10,6 +10,7 @@ GAME_H = 720
 GAME_W = 800
 
 def main():
+    # --- Setup webcam ---
     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH,  640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -19,10 +20,12 @@ def main():
         print("[ERROR] Cannot open webcam. Check camera index.")
         return
 
+    # --- Inisialisasi detektor tangan, game, dan renderer ---
     detector = HandDetector()
     game     = Game()
     renderer = Renderer()
 
+    # --- State awal menu & konfigurasi ---
     app_state = 'SPLASH'
     player_team = 'INA'
     enemy_team = 'BRA'
@@ -53,13 +56,16 @@ def main():
 
             frame = cv2.flip(frame, 1)
 
+            # --- Deteksi tangan dari frame webcam ---
             centroid, gesture, debug_frame = detector.process(frame)
 
+            # --- Konversi posisi tangan ke koordinat layar game ---
             cursor_pos = None
             if centroid is not None:
                 cx, cy = centroid
                 cursor_pos = (int((cx / 640.0) * GAME_W), int((cy / 480.0) * GAME_H))
 
+            # --- Kontrol musik tema (play di menu, stop di game) ---
             if app_state in ('SPLASH', 'TEAM_SELECT', 'CUSTOMIZE'):
                 if not music_playing:
                     audio.play('theme', themesong_path, loop=True)
@@ -69,6 +75,7 @@ def main():
                     audio.stop('theme')
                     music_playing = False
 
+            # --- Render layar sesuai state (splash/menu/game) ---
             if app_state == 'SPLASH':
                 game_canvas = renderer.draw_splash_screen()
                 key_check = cv2.waitKey(1)
@@ -80,6 +87,7 @@ def main():
                 game_canvas = renderer.draw(game, arena_theme, bat_color)
             elif app_state == 'TEAM_SELECT':
                 game_canvas = renderer.draw_team_select_screen(player_team, enemy_team, cursor_pos, gesture)
+                # --- Seleksi tim via gesture tangan ---
                 if cursor_pos and gesture == 'FIST':
                     cx, cy = cursor_pos
                     if 50 <= cx <= 350:
@@ -97,6 +105,7 @@ def main():
                     elif 300 <= cx <= 500 and 550 <= cy <= 610:
                         app_state = 'CUSTOMIZE'
             elif app_state == 'CUSTOMIZE':
+                # --- Hold gesture untuk start game ---
                 hold_progress = 0.0
                 if cursor_pos and gesture == 'FIST':
                     cx, cy = cursor_pos
@@ -146,6 +155,7 @@ def main():
         if key == ord('q') or key == 27:
             break
 
+        # --- Keyboard shortcut untuk navigasi menu & game ---
         if app_state == 'SPLASH':
             if key == 13 or key == 32:
                 app_state = 'TEAM_SELECT'

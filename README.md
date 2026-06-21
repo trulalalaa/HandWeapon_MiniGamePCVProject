@@ -7,10 +7,13 @@ FIPA World Cup adalah game tenis meja 3D berbasis Computer Vision yang dikontrol
 
 Game ini punya tema turnamen tenis meja internasional, dengan pilihan tim dari 5 negara, 3 venue, efek suara stadion, dan musik tema.
 
+![Cover FIPA World Cup](cover.jpeg)
+
 ---
 
 ## 📑 Daftar Isi
 
+- [Dokumentasi Media](#dokumentasi-media)
 - [Fitur Utama](#-fitur-utama)
 - [Arsitektur Sistem](#-arsitektur-sistem)
 - [Alur Aplikasi (State Machine)](#-alur-aplikasi-state-machine)
@@ -25,6 +28,24 @@ Game ini punya tema turnamen tenis meja internasional, dengan pilihan tim dari 5
 - [Aset](#-aset)
 - [Instalasi dan Menjalankan](#-instalasi-dan-menjalankan)
 - [Teknologi yang Digunakan](#-teknologi-yang-digunakan)
+
+---
+
+## Dokumentasi Media
+
+Bagian ini berisi dokumentasi visual dari proyek **FIPA World Cup**.
+
+### Cover Proyek
+
+![Cover FIPA World Cup](cover.jpeg)
+
+### Video Demo
+
+Video demo permainan dapat dilihat melalui file berikut:
+
+[Tonton Video Demo](Video.mp4)
+
+Video ini mendokumentasikan alur utama aplikasi, mulai dari tampilan awal, pemilihan tim, kustomisasi venue dan warna bet, sampai gameplay tenis meja berbasis deteksi gesture tangan.
 
 ---
 
@@ -513,6 +534,9 @@ Path audio pakai `os.path.dirname(__file__)` supaya tidak tergantung CWD saat pr
 ## 📁 Aset
 
 ```
+cover.jpeg                    # Cover dokumentasi proyek
+Video.mp4                     # Video demo permainan
+
 asset/
 ├── Logo.png                    # Logo splash screen FIPA World Cup
 ├── themesong.mp3               # Musik tema menu
@@ -577,13 +601,3 @@ python main.py
 | **winmm.dll** | (Windows) | Memutar file MP3 via MCI (Media Control Interface) |
 
 ---
-
-## 👤 Kontributor
-
-- Mahasiswa ITS, Final Project Pengolahan Citra dan Visi (PCV)
-
----
-
-## 📜 Lisensi
-
-Proyek ini dibuat untuk keperluan akademis sebagai tugas akhir mata kuliah PCV di Institut Teknologi Sepuluh Nopember.

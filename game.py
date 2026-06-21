@@ -3,6 +3,7 @@ import random
 import os
 import audio
 
+# --- Konstanta game ---
 WIN_SCORE       = 7
 WEBCAM_WIDTH    = 480
 PADDLE_WIDTH    = 0.20
@@ -23,9 +24,11 @@ class Game:
         self.difficulty_stars = stars
         self._set_speed_by_difficulty()
 
+    # --- Rumus kecepatan bola berdasarkan difficulty ---
     def _set_speed_by_difficulty(self):
         self.ball_speed = 0.7 + ((self.difficulty_stars - 3.0) / 2.0) * 0.7
 
+    # --- Reset state game (posisi bola, skor, dll) ---
     def reset(self):
         self.ball_x  = 0.5
         self.ball_z  = 0.5
@@ -52,6 +55,7 @@ class Game:
         self.shake_frames     = 0
         self.frames           = 0
 
+    # --- Reset posisi bola setelah point ---
     def _reset_ball(self, toward_player: bool):
         self.ball_x  = 0.5
         self.ball_z  = 0.5
@@ -63,6 +67,7 @@ class Game:
         alias = f'ball{self._ball_snd_counter}'
         audio.play(alias, self.ball_sound_path)
 
+    # --- Sistem scoring & cek menang ---
     def _trigger_point(self, scorer: str):
         if scorer == 'PLAYER':
             self.player_score += 1
@@ -84,6 +89,7 @@ class Game:
         else:
             self.state = 'point_scored'
 
+    # --- Game loop utama (dipanggil tiap frame) ---
     def update(self, centroid):
         self.frames += 1
 
@@ -116,6 +122,7 @@ class Game:
                 self._hand_seen_since = None
             return
 
+        # --- Pergerakan paddle player (dari posisi tangan webcam) ---
         if centroid is not None:
             cx, cy = centroid
             self._prev_player_x = self.player_x
@@ -124,12 +131,14 @@ class Game:
             self.player_x = max(0.0, min(1.0, normalized_cx))
             self.player_dx = self.player_x - self._prev_player_x
 
+        # --- Pergerakan paddle AI (mengejar bola) ---
         ai_speed_mult = 0.01 + ((self.difficulty_stars - 3.0) / 2.0) * 0.025
         ai_speed = ai_speed_mult * self.ball_speed
         diff = self.ball_x - self.ai_x
         self.ai_x += max(-ai_speed, min(ai_speed, diff))
         self.ai_x = max(0.0, min(1.0, self.ai_x))
 
+        # --- Update posisi bola & pantulan dinding samping ---
         prev_z = self.ball_z
         self.ball_x += self.ball_vx
         self.ball_z += self.ball_vz
@@ -143,6 +152,7 @@ class Game:
             self.ball_vx *= -1
             self._play_ball_sound()
 
+        # --- Deteksi tabrakan bola dengan paddle player ---
         if prev_z >= 0.0 and self.ball_z < 0.0:
             if abs(self.ball_x - self.player_x) <= PADDLE_WIDTH / 2.0:
                 self.ball_z = 0.0
@@ -155,6 +165,7 @@ class Game:
                 self._trigger_point('AI')
                 return
 
+        # --- Deteksi tabrakan bola dengan paddle AI ---
         if prev_z <= 1.0 and self.ball_z > 1.0:
             if abs(self.ball_x - self.ai_x) <= PADDLE_WIDTH / 2.0:
                 self.ball_z = 1.0

@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 
+# --- Operasi Morfologi Manual (Erode, Dilate, Opening, Closing) ---
 def manual_erode(mask: np.ndarray, ksize: int = 3) -> np.ndarray:
     pad = ksize // 2
     padded = np.pad(mask, pad, mode='constant', constant_values=0)
@@ -27,6 +28,7 @@ def manual_closing(mask: np.ndarray, ksize: int = 3) -> np.ndarray:
 
 class HandDetector:
 
+    # --- Threshold warna kulit (HSV) ---
     LOWER_SKIN = np.array([90,  45,  20], dtype=np.uint8)
     UPPER_SKIN = np.array([130, 255, 255], dtype=np.uint8)
 
@@ -39,11 +41,13 @@ class HandDetector:
     def process(self, bgr_frame: np.ndarray):
         h, w = bgr_frame.shape[:2]
 
+        # --- Konversi BGR ke HSV & segmentasi warna kulit ---
         hsv = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2HSV)
 
         condition = np.all((hsv >= self.LOWER_SKIN) & (hsv <= self.UPPER_SKIN), axis=2)
         mask = np.where(condition, np.uint8(255), np.uint8(0))
 
+        # --- Downscale + morphological cleaning (noise removal) ---
         small = mask[::2, ::2]
         cleaned_small = manual_opening(small, ksize=3)
         cleaned_small = manual_closing(cleaned_small, ksize=3)
@@ -51,6 +55,7 @@ class HandDetector:
         cleaned = np.repeat(np.repeat(cleaned_small, 2, axis=0), 2, axis=1)
         cleaned = cleaned[:h, :w]
 
+        # --- Deteksi kontur tangan ---
         contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         self.centroid = None
@@ -63,18 +68,21 @@ class HandDetector:
 
             if area >= self.MIN_HAND_AREA:
                 self.contour = largest
+                # --- Hitung centroid (titik pusat tangan) via moments ---
                 M = cv2.moments(largest)
                 if M['m00'] != 0:
                     cx = int(M['m10'] / M['m00'])
                     cy = int(M['m01'] / M['m00'])
                     self.centroid = (cx, cy)
                 
+                # --- Gesture recognition via convex hull solidity ---
                 hull = cv2.convexHull(largest)
                 hull_area = cv2.contourArea(hull)
                 if hull_area > 0:
                     solidity = area / float(hull_area)
                     gesture = "FIST" if solidity > 0.88 else "OPEN"
 
+        # --- Visualisasi debug (kontur, bounding box, centroid) ---
         debug_frame = bgr_frame.copy()
 
         if self.contour is not None:
